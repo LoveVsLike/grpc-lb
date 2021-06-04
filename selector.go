@@ -5,6 +5,7 @@ import (
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"strconv"
+	"sync"
 )
 
 type Selector interface {
@@ -23,11 +24,14 @@ var AddrDoesNotExistErr = errors.New("addr does not exist")
 var NoAvailableAddressErr = errors.New("no available address")
 
 type baseSelector struct {
+	lock sync.Mutex
 	addrs   []string
 	addrMap map[string]*AddrInfo
 }
 
 func (b *baseSelector) Add(addr grpc.Address) error {
+	b.lock.Lock()
+	defer b.lock.Unlock()
 	for _, v := range b.addrs {
 		if addr.Addr == v {
 			return AddrExistErr
@@ -57,7 +61,8 @@ func (b *baseSelector) Add(addr grpc.Address) error {
 }
 
 func (b *baseSelector) Delete(addr grpc.Address) error {
-
+	b.lock.Lock()
+	defer b.lock.Unlock()
 	firstIdx := -1
 	lastIdx := -1
 	for i, v := range b.addrs {
@@ -82,7 +87,8 @@ func (b *baseSelector) Delete(addr grpc.Address) error {
 }
 
 func (b *baseSelector) Up(addr grpc.Address) (cnt int, connected bool) {
-
+	b.lock.Lock()
+	defer b.lock.Unlock()
 	a, ok := b.addrMap[addr.Addr]
 	if ok {
 		if a.connected {
@@ -102,7 +108,8 @@ func (b *baseSelector) Up(addr grpc.Address) (cnt int, connected bool) {
 }
 
 func (b *baseSelector) Down(addr grpc.Address) error {
-
+	b.lock.Lock()
+	defer b.lock.Unlock()
 	a, ok := b.addrMap[addr.Addr]
 	if ok {
 		a.connected = false
@@ -111,6 +118,8 @@ func (b *baseSelector) Down(addr grpc.Address) error {
 }
 
 func (b *baseSelector) AddrList() []grpc.Address {
+	b.lock.Lock()
+	defer b.lock.Unlock()
 	list := []grpc.Address{}
 	for _, v := range b.addrMap {
 		list = append(list, v.addr)
@@ -123,6 +132,8 @@ func (b *baseSelector) Get(ctx context.Context) (addr grpc.Address, err error) {
 }
 
 func (b *baseSelector) Put(addr string) error {
+	b.lock.Lock()
+	defer b.lock.Unlock()
 	a, ok := b.addrMap[addr]
 	if ok {
 		a.load--
